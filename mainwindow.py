@@ -81,6 +81,7 @@ class Ui_MainWindow(object):
         self.left_constraint.addLayout(self.financial_statements_grid)
         self.horizontalLayout_2.addLayout(self.left_constraint)
 
+        # constraint for right side of screen
         self.right_constraint = QtWidgets.QVBoxLayout()
         self.right_constraint.setContentsMargins(3, -1, -1, -1)
         self.right_constraint.setSpacing(6)
