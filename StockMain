@@ -1,0 +1,148 @@
+import quandl
+import sys
+import requests
+import json
+import mainwindow
+
+from pprint import  pprint
+from PyQt5.QtWidgets import  (QApplication, QWidget, QLabel, QLineEdit, QPushButton, QToolTip,
+                              QMessageBox, QDesktopWidget, QMainWindow, QMenu, QAction, qApp,
+                              QHBoxLayout, QVBoxLayout, QInputDialog, QGridLayout)
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+from matplotlib.dates import DateFormatter, DayLocator, date2num
+from matplotlib.finance import candlestick2_ohlc
+from requests.auth import HTTPBasicAuth
+from pandas.io.json import json_normalize
+
+#Main class
+class MainClass(QMainWindow, mainwindow.Ui_MainWindow):
+    quandl.ApiConfig.api_key = 'uWUJWnrbmYn4xydaHzR3'
+    quandl.ApiConfig.api_version = '2017-11-11'
+
+
+    def __init__(self):
+        super(self.__class__, self).__init__()
+        self.setupUi(self)
+        intrinio_username = '1125400bde12246e110be20eb51bbc39'
+        intrino_password = '8b011688d9ae1b93fac9f2ecf21ac1f2'
+        self.request_auth = HTTPBasicAuth(intrinio_username, intrino_password)
+        self.inputTicker()
+
+        QWidget.updateGeometry(self)
+
+    #centers the app window
+    def center(self):
+        qr = self.frameGeometry()
+        cp = QDesktopWidget().availableGeometry().center()
+        qr.moveCenter(cp)
+        self.move(qr.topLeft())
+
+    #Message box when you close the program
+    def closeEvent(self, event):
+        reply = QMessageBox.question(self, 'Message',
+            "Are you sure?", QMessageBox.Yes, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            event.accept()
+        else:
+            event.ignore()
+
+    #right click menu
+    def contextMenuEvent(self, event):
+        cmenu = QMenu(self)
+
+        newAct = cmenu.addAction("New")
+        opnAct = cmenu.addAction("Open")
+        quitAct = cmenu.addAction("Quit")
+        action = cmenu.exec_(self.mapToGlobal(event.pos()))
+
+        if action == quitAct:
+            qApp.quit()
+
+    #input text for the ticker
+    def inputTicker(self):
+
+        #self.stockName = QLabel("STOCK")
+        #self.tickerText = QLineEdit(self)
+        #self.statements_text = QLabel("Statements")
+        print("test")
+        self.search_box.returnPressed.connect(self.search_button.click)
+        self.search_button.clicked.connect(self.displayTicker)
+
+    def displayTicker(self):
+        self.tickerVar = self.search_box.text()
+        self.stock_name.setText(self.tickerVar.upper())
+        r = requests.get(
+            'https://api.intrinio.com/financials/reported?identifier=' + self.tickerVar.upper() +
+            '&statement=income_statement&fiscal_year=2015&fiscal_period=FY',
+            auth=self.request_auth)
+
+        self.finance_data = json.loads(r.text)
+        self.normalized_fin = json_normalize(self.finance_data['data'])
+
+
+        try:
+            del self.normalized_fin['domain_tag']
+        except KeyError:
+            pass
+
+        self.financial_stm_label.setText(str(self.normalized_fin))
+
+        try:
+            self.data = quandl.get('WIKI/' + self.tickerVar, start_date='2017-05-1', end_date='2017-10-1',
+                               order="asc|desc", collapse='daily')
+        except (RuntimeError, TypeError, NameError, AttributeError):
+            pass
+
+        try:
+            print(self.normalized_fin)
+            self.plotData()
+        except (AttributeError):
+            pass
+
+    #function to plot the data from displayTicker
+    def plotData(self):
+        self.figure = Figure()
+        self.canvas = FigureCanvas(self.figure)
+        ax = self.figure.add_subplot(111)
+        ax.clear()
+
+        ##Work on date time
+        import  datetime as dtime
+        import matplotlib.ticker as ticker
+
+        candlestick2_ohlc(ax, self.data.reset_index()['Open'], self.data.reset_index()['High'],
+                          self.data.reset_index()['Low'], self.data.reset_index()['Close'], width=0.6)
+        dateformat = '%Y-%m-%d'
+        xdate = [dtime.datetime.strftime(i, dateformat) for i in self.data.reset_index()['Date']]
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(6))
+
+        def mydate(x, pos):
+            try:
+                return xdate[int(x)]
+            except IndexError:
+                return ''
+        xdate = xdate[::-1]
+        yprice = self.data.reset_index()['Close']
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(mydate))
+        ax.plot(xdate, yprice)
+        ax = self.figure.autofmt_xdate()
+        ax = self.figure.tight_layout()
+        self.graph_layout.addWidget(self.canvas)
+        self.canvas.draw()
+
+
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    main = MainClass()
+    main.show()
+    app.exec_()
+    #sys.exit(app.exec_())
+
+
+
+
+# print(data)
